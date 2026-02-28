@@ -1,8 +1,39 @@
 #include <stdbool.h>
+#include <time.h>
 
+#include "utils.h"
 #include "visualizer.h"
 
-void add_tile(tile_array* ta, tile t) {
+visualizer_context visualize_setup(void) {
+    srand((unsigned int) time(NULL));
+
+    board board = create_board();
+
+    route_array routes = {};
+    tile_array array = {};
+
+    tile start = board.tiles[0][0];
+    add_tile(&array, start);
+    add_tile_array(&routes, &array);
+
+    tile_array unique_tiles = (tile_array){ };
+    add_tile(&unique_tiles, start);
+
+    return (visualizer_context){
+        .board        = board,
+        .routes       = routes,
+        .start        = start,
+        .end          = board.tiles[TILES_PER_ROW - 1][TILES_PER_ROW - 1],
+        .final_route  = (tile_array){ },
+        .unique_tiles = unique_tiles,
+    };
+}
+
+bool found_final_route(visualizer_context *ctx) {
+    return ctx->final_route.count != 0;
+}
+
+void add_tile(tile_array *ta, tile t) {
     if (ta->count >= ta->capacity) {
         if (ta->capacity == 0) {
             ta->capacity = 128;
@@ -17,24 +48,24 @@ void add_tile(tile_array* ta, tile t) {
     ta->count += 1;
 }
 
-void add_tile_array(tile_arrays* arrs, tile_array *ta) {
-    if (arrs->count >= arrs->capacity) {
-        if (arrs->capacity == 0) {
-            arrs->capacity = 128;
+void add_tile_array(route_array *routes, tile_array *array) {
+    if (routes->count >= routes->capacity) {
+        if (routes->capacity == 0) {
+            routes->capacity = 128;
         } else {
-            arrs->capacity *= 2;
+            routes->capacity *= 2;
         }
 
-        arrs->array = realloc(arrs->array, arrs->capacity * sizeof(*arrs->array));
+        routes->array = realloc(routes->array, routes->capacity * sizeof(*routes->array));
     }
 
-    arrs->array[arrs->count] = *ta;
-    arrs->count += 1;
+    routes->array[routes->count] = *array;
+    routes->count += 1;
 }
 
-bool array_contains(tile_array* ta, tile t) {
-    for (u32 i = 0; i < ta->count; i++) {
-        tile tl = ta->tiles[i];
+bool array_contains(tile_array *array, tile t) {
+    for (u32 i = 0; i < array->count; i++) {
+        tile tl = array->tiles[i];
 
         if (tl.x == t.x && tl.y == t.y) {
             return true;
@@ -44,9 +75,9 @@ bool array_contains(tile_array* ta, tile t) {
     return false;
 }
 
-void draw_arrays(tile_arrays *ta, SDL_Renderer *r) {
-    for (u32 i = 0; i < ta->count; i++) {
-        draw_array(&ta->array[i], r);
+void draw_arrays(route_array *array, SDL_Renderer *r) {
+    for (u32 i = 0; i < array->count; i++) {
+        draw_array(&array->array[i], r);
     }
 }
 
@@ -62,13 +93,12 @@ void draw_array(tile_array *a, SDL_Renderer *r) {
         };
 
         SDL_SetRenderDrawColor(r, 255, 0, 0, 255);
-
         SDL_RenderFillRect(r, &rect);
     }
 }
 
 void draw_result(tile_array *a, SDL_Renderer *r) {
-    for (u16 i = 0; i < a->count; i++) {
+    for (u32 i = 0; i < a->count; i++) {
         tile ta_tile = a->tiles[i];
 
         SDL_FRect rect = {
@@ -96,22 +126,26 @@ tile_array copy_array(tile_array *a) {
     return result;
 }
 
-void temp_array_push(tile_arrays *temp_arrays, tile_array *array, tile t) {
-    if (t.x < 0 || t.y < 0 || t.x >= TILES_PER_ROW || t.y >= TILES_PER_ROW) {
+void temp_array_push(route_array *temp_arrays, tile_array *array, tile tile) {
+    if (tile.x < 0 || tile.y < 0 || tile.x >= TILES_PER_ROW || tile.y >= TILES_PER_ROW) {
+        return;
+    }
+
+    if (array_contains(array, tile)) {
         return;
     }
     
     tile_array temp_array = copy_array(array);
-    add_tile(&temp_array, t);
+    add_tile(&temp_array, tile);
 
     add_tile_array(temp_arrays, &temp_array);
 }
 
 void visualize_next_step(visualizer_context *ctx, SDL_Renderer *r) {
-    tile_arrays temp_arrays = {};
+    route_array temp_arrays = {};
 
-    for (u32 i = 0; i < ctx->arrays.count; i++) {
-        tile_array array = ctx->arrays.array[i];
+    for (u32 i = 0; i < ctx->routes.count; i++) {
+        tile_array array = ctx->routes.array[i];
         tile current_tile = array.tiles[array.count - 1];
 
         i16 prvs_y = current_tile.y - 1;
@@ -119,62 +153,56 @@ void visualize_next_step(visualizer_context *ctx, SDL_Renderer *r) {
         i16 next_y = current_tile.y + 1;
         i16 prvs_x = current_tile.x - 1;
 
-        if (ctx->route.count == 0) {
-            if (current_tile.x == ctx->end.x && current_tile.y == ctx->end.y) {
-                ctx->route = array;
+        if (found_final_route(ctx)) {
+            return;
+        }
+
+        if (tile_equals(ctx->end, current_tile)) {
+            ctx->final_route = array;
+        }
+
+        if (prvs_y >= 0) {
+            tile tile = ctx->board.tiles[prvs_y][current_tile.x];
+
+            if (!array_contains(&ctx->unique_tiles, tile) && tile.open) {
+                add_tile(&ctx->unique_tiles, tile);
+
+                temp_array_push(&temp_arrays, &array, tile);
             }
+        }
 
-            if (prvs_y >= 0) {
-                tile t = ctx->board.tiles[prvs_y][current_tile.x];
+        if (next_x < TILES_PER_ROW) {
+            tile tile = ctx->board.tiles[current_tile.y][next_x];
 
-                if (t.open && !array_contains(&array, t)) {
-                    if (!array_contains(&ctx->unique_tiles, t)) {
-                        add_tile(&ctx->unique_tiles, t);
+            if (!array_contains(&ctx->unique_tiles, tile) && tile.open) {
+                add_tile(&ctx->unique_tiles, tile);
 
-                        temp_array_push(&temp_arrays, &array, t);
-                    }
-                }
+                temp_array_push(&temp_arrays, &array, tile);
             }
+        }
 
-            if (next_x < TILES_PER_ROW) {
-                tile t = ctx->board.tiles[current_tile.y][next_x];
+        if (next_y < TILES_PER_ROW) {
+            tile tile = ctx->board.tiles[next_y][current_tile.x];
 
-                if (t.open && !array_contains(&array, t)) {
-                    if (!array_contains(&ctx->unique_tiles, t)) {
-                        add_tile(&ctx->unique_tiles, t);
+            if (!array_contains(&ctx->unique_tiles, tile) && tile.open) {
+                add_tile(&ctx->unique_tiles, tile);
 
-                        temp_array_push(&temp_arrays, &array, t);
-                    }
-                }
+                temp_array_push(&temp_arrays, &array, tile);
             }
+        }
 
-            if (next_y < TILES_PER_ROW) {
-                tile t = ctx->board.tiles[next_y][current_tile.x];
+        if (prvs_x >= 0) {
+            tile tile = ctx->board.tiles[current_tile.y][prvs_x];
 
-                if (t.open && !array_contains(&array, t)) {
-                    if (!array_contains(&ctx->unique_tiles, t)) {
-                        add_tile(&ctx->unique_tiles, t);
+            if (!array_contains(&ctx->unique_tiles, tile) && tile.open) {
+                add_tile(&ctx->unique_tiles, tile);
 
-                        temp_array_push(&temp_arrays, &array, t);
-                    }
-                }
-            }
-
-            if (prvs_x >= 0) {
-                tile t = ctx->board.tiles[current_tile.y][prvs_x];
-
-                if (t.open && !array_contains(&array, t)) {
-                    if (!array_contains(&ctx->unique_tiles, t)) {
-                        add_tile(&ctx->unique_tiles, t);
-
-                        temp_array_push(&temp_arrays, &array, t);
-                    }
-                }
+                temp_array_push(&temp_arrays, &array, tile);
             }
         }
     }
 
     if (temp_arrays.count > 0) {
-        ctx->arrays = temp_arrays;
+        ctx->routes = temp_arrays;
     }
 }

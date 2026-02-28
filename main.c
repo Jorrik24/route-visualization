@@ -10,44 +10,14 @@
 
 #include "visualizer.h"
 #include "board.h"
-#include <time.h>
-
-#define APP_TITLE ("SDL")
-#define APP_WIDTH (800)
-#define APP_HEIGHT (800)
 
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 
 static Uint64 last_time = 0;
-static const Uint64 frame_delay = 100;
+static const Uint64 frame_delay = 25;
 
-visualizer_context visualizer;
-
-visualizer_context visualize_setup(void) {
-    srand((unsigned int) time(NULL));
-
-    board brd = create_board();
-
-    tile_arrays arrays = { };
-    tile_array array = {};
-
-    tile start = brd.tiles[0][0];
-    add_tile(&array, start);
-    add_tile_array(&arrays, &array);
-
-    tile_array unique_tiles = (tile_array){ };
-    add_tile(&unique_tiles, start);
-
-    return (visualizer_context){
-        .board        = brd,
-        .arrays       = arrays,
-        .start        = start,
-        .end          = brd.tiles[49][49],
-        .route        = (tile_array){ },
-        .unique_tiles = unique_tiles,
-    };
-}
+visualizer_context ctx;
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
@@ -61,7 +31,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     last_time = SDL_GetTicks();
 
-    visualizer = visualize_setup();
+    ctx = visualize_setup();
 
     return SDL_APP_CONTINUE;
 }
@@ -89,14 +59,18 @@ SDL_AppResult SDL_AppIterate(void *appstate)
 
     SDL_RenderClear(renderer);
 
-    draw_board(&visualizer.board, renderer);
+    draw_board(&ctx.board, renderer);
 
-    if (visualizer.route.count == 0) {
-        // draw_arrays(&visualizer.arrays, renderer);
-        draw_array(&visualizer.unique_tiles, renderer);
-        visualize_next_step(&visualizer, renderer);
+    if (!found_final_route(&ctx)) {
+        if (ONLY_SHOW_POSSIBLE_FINAL_ROUTES) {
+            draw_arrays(&ctx.routes, renderer);
+        } else {
+            draw_array(&ctx.unique_tiles, renderer);
+        }
+         
+        visualize_next_step(&ctx, renderer);
     } else {
-        draw_result(&visualizer.route, renderer);
+        draw_result(&ctx.final_route, renderer);
     }
 
     SDL_RenderPresent(renderer);

@@ -21,6 +21,14 @@ board create_board(void) {
         }
     }
 
+    b.tiles[0][0].open = true;
+    b.tiles[1][0].open = true;
+    b.tiles[0][1].open = true;
+
+    b.tiles[TILES_PER_ROW - 1][TILES_PER_ROW - 2].open = true;
+    b.tiles[TILES_PER_ROW - 2][TILES_PER_ROW - 1].open = true;
+    b.tiles[TILES_PER_ROW - 1][TILES_PER_ROW - 1].open = true;
+
     return b;
 }
 
@@ -45,4 +53,8 @@ void draw_board(board *b, SDL_Renderer *r) {
             SDL_RenderFillRect(r, &rect);
         }
     }
+}
+
+bool tile_equals(tile t1, tile t2) {
+    return t1.x == t2.x && t1.y == t2.y;
 }
