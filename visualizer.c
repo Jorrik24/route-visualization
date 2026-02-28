@@ -16,7 +16,7 @@ visualizer_context visualize_setup(void) {
     add_tile(&array, start);
     add_tile_array(&routes, &array);
 
-    tile_array unique_tiles = (tile_array){ };
+    tile_array unique_tiles = (tile_array){};
     add_tile(&unique_tiles, start);
 
     return (visualizer_context){
@@ -24,7 +24,7 @@ visualizer_context visualize_setup(void) {
         .routes       = routes,
         .start        = start,
         .end          = board.tiles[TILES_PER_ROW - 1][TILES_PER_ROW - 1],
-        .final_route  = (tile_array){ },
+        .final_route  = (tile_array){},
         .unique_tiles = unique_tiles,
     };
 }
@@ -33,19 +33,19 @@ bool found_final_route(visualizer_context *ctx) {
     return ctx->final_route.count != 0;
 }
 
-void add_tile(tile_array *ta, tile t) {
-    if (ta->count >= ta->capacity) {
-        if (ta->capacity == 0) {
-            ta->capacity = 128;
+void add_tile(tile_array *array, tile t) {
+    if (array->count >= array->capacity) {
+        if (array->capacity == 0) {
+            array->capacity = 128;
         } else {
-            ta->capacity *= 2;
+            array->capacity *= 2;
         }
 
-        ta->tiles = realloc(ta->tiles, ta->capacity * sizeof(*ta->tiles));
+        array->tiles = realloc(array->tiles, array->capacity * sizeof(*array->tiles));
     }
 
-    ta->tiles[ta->count] = t;
-    ta->count += 1;
+    array->tiles[array->count] = t;
+    array->count += 1;
 }
 
 void add_tile_array(route_array *routes, tile_array *array) {
@@ -63,11 +63,9 @@ void add_tile_array(route_array *routes, tile_array *array) {
     routes->count += 1;
 }
 
-bool array_contains(tile_array *array, tile t) {
+bool array_contains(tile_array *array, tile tile) {
     for (u32 i = 0; i < array->count; i++) {
-        tile tl = array->tiles[i];
-
-        if (tl.x == t.x && tl.y == t.y) {
+        if (tile_equals(array->tiles[i], tile)) {
             return true;
         }
     }
@@ -81,9 +79,9 @@ void draw_arrays(route_array *array, SDL_Renderer *r) {
     }
 }
 
-void draw_array(tile_array *a, SDL_Renderer *r) {
-    for (u32 i = 0; i < a->count; i++) {
-        tile ta_tile = a->tiles[i];
+void draw_array(tile_array *array, SDL_Renderer *r) {
+    for (u32 i = 0; i < array->count; i++) {
+        tile ta_tile = array->tiles[i];
 
         SDL_FRect rect = {
             ta_tile.x * TILE_WIDTH,
@@ -97,9 +95,9 @@ void draw_array(tile_array *a, SDL_Renderer *r) {
     }
 }
 
-void draw_result(tile_array *a, SDL_Renderer *r) {
-    for (u32 i = 0; i < a->count; i++) {
-        tile ta_tile = a->tiles[i];
+void draw_result(tile_array *array, SDL_Renderer *r) {
+    for (u32 i = 0; i < array->count; i++) {
+        tile ta_tile = array->tiles[i];
 
         SDL_FRect rect = {
             ta_tile.x * TILE_WIDTH,

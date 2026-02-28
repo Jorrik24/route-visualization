@@ -9,7 +9,7 @@
 #include "board.h"
 
 board create_board(void) {
-    board b = { };
+    board b = {};
 
     for (u16 y = 0; y < TILES_PER_ROW; y++) {
         for (u16 x = 0; x < TILES_PER_ROW; x++) {
